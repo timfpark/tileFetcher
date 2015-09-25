@@ -4,6 +4,10 @@ var async = require('async')
   , request = require('request')
   , Tile = require('geotile');
 
+var appInsights = require('applicationinsights');
+appInsights.setup().start();
+var appInsightsClient = appInsights.getClient();
+
 var retryOperations = new azure.ExponentialRetryPolicyFilter();
 var queueService = azure.createQueueService(
     process.env.AZURE_STORAGE_ACCOUNT, 
@@ -57,6 +61,7 @@ function fetchFromGoogle(tileId, callback) {
         var json = JSON.parse(body);
 
         if (json.status !== 'OK' && json.status !== 'ZERO_RESULTS') {
+            appInsightsClient.trackMetric("overquota", 1); 
             console.log('json status error: ' + json.status);
             return setTimeout(function() { callback(json.status); }, 60 * 60 * 1000);
         }
@@ -123,8 +128,9 @@ function fetchFromGoogle(tileId, callback) {
                                 console.log('putToTileServer err: ' + err);
                                 return next();
                             }
-    
-                            setTimeout(next, 100);
+   
+                            appInsightsClient.trackMetric("tile", 1); 
+                            setTimeout(next, 35 * 1000);
                         });                        
                     });
                 });
