@@ -49,11 +49,17 @@ function fetchFromGoogle(tileId, callback) {
 
     var url = "http://maps.google.com/maps/api/geocode/json?latlng=" + tile.centerLatitude + "," + tile.centerLongitude + "&sensor=false";
     request.get(url, function(err, httpResponse, body) {
-        if (err) return callback(err);
-
+        if (err) {
+            console.log('google error: ' + err);
+            return setTimeout(function() { callback(err); }, 60 * 1000);
+        }
+        
         var json = JSON.parse(body);
 
-        if (json.status !== 'OK' && json.status !== 'ZERO_RESULTS') return callback(json.status);
+        if (json.status !== 'OK' && json.status !== 'ZERO_RESULTS') {
+            console.log('json status error: ' + json.status);
+            return setTimeout(function() { callback(json.status); }, 60 * 60 * 1000);
+        }
 
         json.parsed = {};
 
@@ -72,32 +78,51 @@ function fetchFromGoogle(tileId, callback) {
    });
 }
 
-queueService.createQueueIfNotExists(UNFETCHED_QUEUE, function(err, result, response) {
-	if (err) return console.log(err);
+//queueService.createQueueIfNotExists(UNFETCHED_QUEUE, function(err, result, response) {
+//	if (err) return console.log(err);
   
     async.forever(function(next) {
         queueService.getMessages(UNFETCHED_QUEUE, function(err, messages) {
-            if (err) return next();
-            if (messages.length < 1) return next();
+            if (err) {
+                console.log('getMessage err: ' + err);
+                return next();
+            }
+            if (messages.length < 1) {
+                console.log('no messages -> next()')
+                return next();
+            }
 
             var message = messages[0];
             var tileId = message.messagetext;
             
             queueService.deleteMessage(UNFETCHED_QUEUE, message.messageid, message.popreceipt, function(err) {
                 if (err) {
-                    console.log(err);
+                    console.log('deleteMessage err: ' + err);
                     return next(err);
                 }
 
                 checkTileServer(tileId, function(err, statusCode) {
-                    if (err) return next(err);
-                    if (statusCode === 200) return next();
+                    if (err) {
+                        console.log('checkTileServer err: ' + err);
+                        return next();
+                    }
+                    
+                    if (statusCode === 200) {
+                        console.log('already have tile');
+                        return next();
+                    }
                     
                     fetchFromGoogle(tileId, function(err, location) {
-                        if (err) return next(err);
+                        if (err) {
+                            console.log('fetch from Google err: ' + err);
+                            return next();
+                        }
                         
                         putToTileServer(tileId, location, function(err) {
-                            if (err) return next(err);
+                            if (err) {
+                                console.log('putToTileServer err: ' + err);
+                                return next();
+                            }
     
                             setTimeout(next, 100);
                         });                        
@@ -106,7 +131,7 @@ queueService.createQueueIfNotExists(UNFETCHED_QUEUE, function(err, result, respo
             });
         });      
     }, function(err) {
-            
+        console.log('async exitted: ' + err);          
     });
     
-});
+//});
