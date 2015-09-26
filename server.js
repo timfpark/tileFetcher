@@ -10,7 +10,7 @@ var appInsightsClient = appInsights.getClient();
 
 var retryOperations = new azure.ExponentialRetryPolicyFilter();
 var queueService = azure.createQueueService(
-    process.env.AZURE_STORAGE_ACCOUNT, 
+    process.env.AZURE_STORAGE_ACCOUNT,
     process.env.AZURE_STORAGE_KEY).withFilter(retryOperations);
 
 var UNFETCHED_QUEUE = 'unfetchedtiles';
@@ -20,8 +20,12 @@ function checkTileServer(tileId, callback) {
     var url = TILE_SERVER_BASE_URL + tileId;
     request.get(url, function(err, httpResponse, body) {
         if (err) return callback(err);
+        if (body.indexOf("links") === -1) {
+            console.log("got page but didn't have results JSON on it.");
+            return callback(null, 404);
+        }
         return callback(null, httpResponse.statusCode);
-    });        
+    });
 }
 
 function putToTileServer(tileId, location, callback) {
@@ -36,7 +40,7 @@ function putToTileServer(tileId, location, callback) {
     };
 
     console.dir(attributes);
-    
+
     request.post(TILE_SERVER_BASE_URL, {
         json: {
             data: {
@@ -57,13 +61,13 @@ function fetchFromGoogle(tileId, callback) {
             console.log('google error: ' + err);
             return setTimeout(function() { callback(err); }, 60 * 1000);
         }
-        
+
         var json = JSON.parse(body);
 
         if (json.status !== 'OK' && json.status !== 'ZERO_RESULTS') {
-            appInsightsClient.trackMetric("overquota", 1); 
+            appInsightsClient.trackMetric("overquota", 1);
             console.log('json status error: ' + json.status);
-            return setTimeout(function() { callback(json.status); }, 60 * 60 * 1000);
+            return setTimeout(function() { callback(json.status); }, 60 * 1000);
         }
 
         json.parsed = {};
@@ -85,7 +89,7 @@ function fetchFromGoogle(tileId, callback) {
 
 //queueService.createQueueIfNotExists(UNFETCHED_QUEUE, function(err, result, response) {
 //	if (err) return console.log(err);
-  
+
     async.forever(function(next) {
         queueService.getMessages(UNFETCHED_QUEUE, function(err, messages) {
             if (err) {
@@ -99,7 +103,7 @@ function fetchFromGoogle(tileId, callback) {
 
             var message = messages[0];
             var tileId = message.messagetext;
-            
+
             queueService.deleteMessage(UNFETCHED_QUEUE, message.messageid, message.popreceipt, function(err) {
                 if (err) {
                     console.log('deleteMessage err: ' + err);
@@ -111,33 +115,33 @@ function fetchFromGoogle(tileId, callback) {
                         console.log('checkTileServer err: ' + err);
                         return next();
                     }
-                    
+
                     if (statusCode === 200) {
-                        console.log('already have tile');
+                        console.log('already have tile: ' + tileId);
                         return next();
                     }
-                    
+
                     fetchFromGoogle(tileId, function(err, location) {
                         if (err) {
                             console.log('fetch from Google err: ' + err);
                             return next();
                         }
-                        
+
                         putToTileServer(tileId, location, function(err) {
                             if (err) {
                                 console.log('putToTileServer err: ' + err);
                                 return next();
                             }
-   
-                            appInsightsClient.trackMetric("tile", 1); 
+
+                            appInsightsClient.trackMetric("tile", 1);
                             setTimeout(next, 35 * 1000);
-                        });                        
+                        });
                     });
                 });
             });
-        });      
+        });
     }, function(err) {
-        console.log('async exitted: ' + err);          
+        console.log('async exitted: ' + err);
     });
-    
+
 //});
