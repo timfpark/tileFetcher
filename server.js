@@ -96,7 +96,7 @@ function fetchFromGoogle(tileId, callback) {
             }
             if (messages.length < 1) {
                 console.log('no messages -> next()')
-                return setTimeout(60 * 1000, next);
+                return setTimeout(next, 60 * 1000);
             }
 
             var message = messages[0];
