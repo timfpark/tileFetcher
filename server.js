@@ -20,7 +20,7 @@ function checkTileServer(tileId, callback) {
     var url = TILE_SERVER_BASE_URL + tileId;
     request.get(url, function(err, httpResponse, body) {
         if (err) return callback(err);
-        if (body.indexOf("links") === -1) {
+        if (httpResponse.statusCode === 200 && body.indexOf("links") === -1) {
             console.log("got page but didn't have results JSON on it.");
             return callback(null, 404);
         }
@@ -38,8 +38,6 @@ function putToTileServer(tileId, location, callback) {
         country: location.parsed.country,
         raw: location
     };
-
-    console.dir(attributes);
 
     request.post(TILE_SERVER_BASE_URL, {
         json: {
