@@ -96,7 +96,7 @@ function fetchFromGoogle(tileId, callback) {
             }
             if (messages.length < 1) {
                 console.log('no messages -> next()')
-                return next();
+                return setTimeout(60 * 1000, next);
             }
 
             var message = messages[0];
@@ -119,6 +119,8 @@ function fetchFromGoogle(tileId, callback) {
                         return next();
                     }
 
+                    console.log('fetching from google');
+
                     fetchFromGoogle(tileId, function(err, location) {
                         if (err) {
                             console.log('fetch from Google err: ' + err);
@@ -130,6 +132,8 @@ function fetchFromGoogle(tileId, callback) {
                                 console.log('putToTileServer err: ' + err);
                                 return next();
                             }
+ 
+                            console.dir(location);
 
                             appInsightsClient.trackMetric("tile", 1);
                             setTimeout(next, 35 * 1000);
