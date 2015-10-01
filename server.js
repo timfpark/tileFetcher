@@ -65,7 +65,7 @@ function fetchFromGoogle(tileId, callback) {
         if (json.status !== 'OK' && json.status !== 'ZERO_RESULTS') {
             appInsightsClient.trackMetric("overquota", 1);
             console.log('json status error: ' + json.status);
-            return setTimeout(function() { callback(json.status); }, 60 * 60 * 1000);
+            return setTimeout(function() { callback(json.status); }, 30 * 60 * 1000);
         }
 
         json.parsed = {};
@@ -136,7 +136,7 @@ function fetchFromGoogle(tileId, callback) {
                             console.dir(location);
 
                             appInsightsClient.trackMetric("tile", 1);
-                            setTimeout(next, 35 * 1000);
+                            setTimeout(next, 37 * 1000);
                         });
                     });
                 });
