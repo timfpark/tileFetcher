@@ -9,9 +9,14 @@ appInsights.setup().start();
 var appInsightsClient = appInsights.getClient();
 
 var retryOperations = new azure.ExponentialRetryPolicyFilter();
+
+var storageAccount = process.env.TILE_STORAGE_ACCOUNT || process.env.AZURE_STORAGE_ACCOUNT;
+var storageKey = process.env.TILE_STORAGE_KEY || process.env.AZURE_STORAGE_KEY;
+
 var queueService = azure.createQueueService(
-    process.env.AZURE_STORAGE_ACCOUNT,
-    process.env.AZURE_STORAGE_KEY).withFilter(retryOperations);
+    storageAccount,
+    storageKey
+).withFilter(retryOperations);
 
 var UNFETCHED_QUEUE = 'unfetchedtiles';
 var TILE_SERVER_BASE_URL = 'http://rhom-tile-service.azurewebsites.net/tiles/';
@@ -92,7 +97,7 @@ function fetchFromGoogle(tileId, callback) {
         queueService.getMessages(UNFETCHED_QUEUE, function(err, messages) {
             if (err) {
                 console.log('getMessage err: ' + err);
-                return next();
+                return setTimeout(next, 60 * 1000);
             }
             if (messages.length < 1) {
                 console.log('no messages -> next()')
@@ -105,13 +110,13 @@ function fetchFromGoogle(tileId, callback) {
             queueService.deleteMessage(UNFETCHED_QUEUE, message.messageid, message.popreceipt, function(err) {
                 if (err) {
                     console.log('deleteMessage err: ' + err);
-                    return next(err);
+                    return setTimeout(next, 60 * 1000);
                 }
 
                 checkTileServer(tileId, function(err, statusCode) {
                     if (err) {
                         console.log('checkTileServer err: ' + err);
-                        return next();
+                        return setTimeout(next, 60  * 1000);
                     }
 
                     if (statusCode === 200) {
@@ -124,13 +129,13 @@ function fetchFromGoogle(tileId, callback) {
                     fetchFromGoogle(tileId, function(err, location) {
                         if (err) {
                             console.log('fetch from Google err: ' + err);
-                            return next();
+                            return setTimeout(next, 60 * 1000);
                         }
 
                         putToTileServer(tileId, location, function(err) {
                             if (err) {
                                 console.log('putToTileServer err: ' + err);
-                                return next();
+                                return setTimeout(next, 60 * 1000);
                             }
 
                             console.dir(location);
