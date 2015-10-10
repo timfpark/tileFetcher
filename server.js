@@ -93,68 +93,63 @@ function fetchFromGoogle(tileId, callback) {
    });
 }
 
-//queueService.createQueueIfNotExists(UNFETCHED_QUEUE, function(err, result, response) {
-//	if (err) return console.log(err);
+async.forever(function(next) {
+    queueService.getMessages(UNFETCHED_QUEUE, function(err, messages) {
+        if (err) {
+            console.log('getMessage err: ' + err);
+            return setTimeout(next, 15 * 1000);
+        }
+        if (messages.length < 1) {
+            console.log('no messages -> next()')
+            return setTimeout(next, 15 * 1000);
+        }
 
-    async.forever(function(next) {
-        queueService.getMessages(UNFETCHED_QUEUE, function(err, messages) {
+        var message = messages[0];
+        var tileId = message.messagetext;
+
+        checkTileServer(tileId, function(err, statusCode) {
             if (err) {
-                console.log('getMessage err: ' + err);
-                return setTimeout(next, 15 * 1000);
-            }
-            if (messages.length < 1) {
-                console.log('no messages -> next()')
+                console.log('checkTileServer err: ' + err);
                 return setTimeout(next, 15 * 1000);
             }
 
-            var message = messages[0];
-            var tileId = message.messagetext;
+            if (statusCode === 200) {
+                console.log('already have tile: ' + tileId);
+                queueService.deleteMessage(UNFETCHED_QUEUE, message.messageid, message.popreceipt, function(err) {
+                    if (err) console.log('deleteMessage err: ' + err);
+                });
+                return next();
+            }
 
-            queueService.deleteMessage(UNFETCHED_QUEUE, message.messageid, message.popreceipt, function(err) {
+            console.log('fetching from google');
+
+            fetchFromGoogle(tileId, function(err, location) {
                 if (err) {
-                    console.log('deleteMessage err: ' + err);
+                    console.log('fetch from Google err: ' + err);
                     return setTimeout(next, 15 * 1000);
                 }
 
-                checkTileServer(tileId, function(err, statusCode) {
+                putToTileServer(tileId, location, function(err) {
                     if (err) {
-                        console.log('checkTileServer err: ' + err);
+                        console.log('putToTileServer err: ' + err);
                         return setTimeout(next, 15 * 1000);
                     }
 
-                    if (statusCode === 200) {
-                        console.log('already have tile: ' + tileId);
-                        return next();
-                    }
+                    console.dir(location);
 
-                    console.log('fetching from google');
-
-                    fetchFromGoogle(tileId, function(err, location) {
-                        if (err) {
-                            console.log('fetch from Google err: ' + err);
-                            return setTimeout(next, 15 * 1000);
-                        }
-
-                        putToTileServer(tileId, location, function(err) {
-                            if (err) {
-                                console.log('putToTileServer err: ' + err);
-                                return setTimeout(next, 15 * 1000);
-                            }
-
-                            console.dir(location);
-
-                            appInsightsClient.trackMetric("tile", 1);
-                            setTimeout(next, 37 * 1000);
-                        });
+                    queueService.deleteMessage(UNFETCHED_QUEUE, message.messageid, message.popreceipt, function(err) {
+                        if (err) console.log('deleteMessage err: ' + err);
                     });
+
+                    appInsightsClient.trackMetric("tile", 1);
+                    setTimeout(next, 40 * 1000);
                 });
             });
         });
-    }, function(err) {
-        console.log('async exitted: ' + err);
     });
-
-//});
+}, function(err) {
+    console.log('async exitted: ' + err);
+});
 
 setInterval(function() {
     console.log('restarting process.');
