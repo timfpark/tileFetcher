@@ -99,6 +99,7 @@ function fetchFromGoogle(tileId, callback) {
 }
 
 async.forever(function(next) {
+    var startTime = new Date();
     queueService.getMessages(UNFETCHED_QUEUE, function(err, messages) {
         if (err) {
             console.log('getMessage err: ' + err);
@@ -147,7 +148,9 @@ async.forever(function(next) {
                     });
 
                     appInsightsClient.trackMetric("tile", 1);
-                    setTimeout(next, 40 * 1000);
+                    var checkTime = new Date().getTime() - startTime.getTime();
+                    var timeout = Math.max(40 * 1000 - checkTime, 0);
+                    setTimeout(next, timeout);
                 });
             });
         });
