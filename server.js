@@ -10,19 +10,11 @@ var appInsightsClient = appInsights.getClient();
 
 var retryOperations = new azure.ExponentialRetryPolicyFilter();
 
-var storageAccount = process.env.TILE_STORAGE_ACCOUNT || process.env.AZURE_STORAGE_ACCOUNT;
-var storageKey = process.env.TILE_STORAGE_KEY || process.env.AZURE_STORAGE_KEY;
-
-var queueService = azure.createQueueService(
-    storageAccount,
-    storageKey
-).withFilter(retryOperations);
-
-var UNFETCHED_QUEUE = 'unfetchedtiles';
-var TILE_SERVER_BASE_URL = 'http://rhom-tile-service.azurewebsites.net/tiles/';
+var TILE_SERVER_BASE_URL = 'http://tiles.rhom.io';
 
 function checkTileServer(tileId, callback) {
-    var url = TILE_SERVER_BASE_URL + tileId;
+    var url = TILE_SERVER_BASE_URL + '/tiles/' + tileId;
+    console.log(url);
     request.get(url, { timeout: 15000 }, function(err, httpResponse, body) {
         if (err) return callback(err);
         if (httpResponse.statusCode === 200 && body.indexOf("links") === -1) {
@@ -30,6 +22,14 @@ function checkTileServer(tileId, callback) {
             return callback(null, 404);
         }
         return callback(null, httpResponse.statusCode);
+    });
+}
+
+function getUnfetchedTile(callback) {
+    var url = TILE_SERVER_BASE_URL + '/fetch';
+    request.get(url, { timeout: 15000 }, function(err, httpResponse, body) {
+        if (err) return callback(err);
+        return callback(null, body);
     });
 }
 
@@ -44,7 +44,7 @@ function putToTileServer(tileId, location, callback) {
         raw: location
     };
 
-    request.post(TILE_SERVER_BASE_URL, {
+    request.post(TILE_SERVER_BASE_URL + "/tiles", {
         timeout: 15000,
         json: {
             data: {
@@ -61,7 +61,7 @@ function fetchFromGoogle(tileId, callback) {
 
     var url = "http://maps.google.com/maps/api/geocode/json?latlng=" + tile.centerLatitude + "," + tile.centerLongitude + "&sensor=false";
     console.log('fetching from google');
-    request.get(url, {timeout: 15000}, function(err, httpResponse, body) {
+    request.get(url, { timeout: 15000 }, function(err, httpResponse, body) {
         console.log('fetched from google');
         if (err) {
             console.log('google error: ' + err);
@@ -100,18 +100,16 @@ function fetchFromGoogle(tileId, callback) {
 
 async.forever(function(next) {
     var startTime = new Date();
-    queueService.getMessages(UNFETCHED_QUEUE, function(err, messages) {
+    getUnfetchedTile(function(err, tileId) {
         if (err) {
-            console.log('getMessage err: ' + err);
-            return setTimeout(next, 15 * 1000);
-        }
-        if (messages.length < 1) {
-            console.log('no messages -> next()')
+            console.log('getUnfetchedTile err: ' + err);
             return setTimeout(next, 15 * 1000);
         }
 
-        var message = messages[0];
-        var tileId = message.messagetext;
+        if (tileId === 'empty') {
+            console.log('no messages -> next');
+            return setTimeout(next, 15 * 1000);
+        }
 
         checkTileServer(tileId, function(err, statusCode) {
             if (err) {
@@ -142,10 +140,6 @@ async.forever(function(next) {
                     }
 
                     console.dir(location);
-
-                    queueService.deleteMessage(UNFETCHED_QUEUE, message.messageid, message.popreceipt, function(err) {
-                        if (err) console.log('deleteMessage err: ' + err);
-                    });
 
                     appInsightsClient.trackMetric("tile", 1);
                     var checkTime = new Date().getTime() - startTime.getTime();
