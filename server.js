@@ -2,7 +2,7 @@ var async = require('async')
   , azure = require('azure-storage')
   , fs = require('fs')
   , request = require('request')
-  , Tile = require('geotile');
+  , Tile = require('geotile')
 
 var appInsights = require('applicationinsights');
 appInsights.setup().start();
@@ -14,7 +14,6 @@ var TILE_SERVER_BASE_URL = 'http://tiles.rhom.io';
 
 function checkTileServer(tileId, callback) {
     var url = TILE_SERVER_BASE_URL + '/tiles/' + tileId;
-    console.log(url);
     request.get(url, { timeout: 15000 }, function(err, httpResponse, body) {
         if (err) return callback(err);
         if (httpResponse.statusCode === 200 && body.indexOf("links") === -1) {
@@ -56,11 +55,13 @@ function putToTileServer(tileId, location, callback) {
 }
 
 function fetchFromGoogle(tileId, callback) {
+    console.log(tileId);
     var tile = Tile.tileFromTileId(tileId);
-    console.log(tile.centerLatitude + " , " + tile.centerLongitude);
+    console.log(new Date() + ": " + tile.centerLatitude + " , " + tile.centerLongitude);
 
     var url = "http://maps.google.com/maps/api/geocode/json?latlng=" + tile.centerLatitude + "," + tile.centerLongitude + "&sensor=false";
     console.log('fetching from google');
+
     request.get(url, { timeout: 15000 }, function(err, httpResponse, body) {
         console.log('fetched from google');
         if (err) {
@@ -139,7 +140,7 @@ async.forever(function(next) {
                         return setTimeout(next, 15 * 1000);
                     }
 
-                    console.dir(location);
+                    console.dir(location.parsed);
 
                     appInsightsClient.trackMetric("tile", 1);
                     var checkTime = new Date().getTime() - startTime.getTime();
