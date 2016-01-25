@@ -134,7 +134,7 @@ async.forever(function(next) {
                     console.dir(location.parsed);
 
                     var checkTime = new Date().getTime() - startTime.getTime();
-                    var timeout = Math.max(0.5 * 1000 - checkTime, 0);
+                    var timeout = Math.max(40.0 * 1000 - checkTime, 0);
                     setTimeout(next, timeout);
                 });
             });
