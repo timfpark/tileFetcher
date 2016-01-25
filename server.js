@@ -2,11 +2,7 @@ var async = require('async')
   , azure = require('azure-storage')
   , fs = require('fs')
   , request = require('request')
-  , Tile = require('geotile');
-
-var appInsights = require('applicationinsights');
-appInsights.setup().start();
-var appInsightsClient = appInsights.getClient();
+  , Tile = require('geotile')
 
 var retryOperations = new azure.ExponentialRetryPolicyFilter();
 
@@ -14,12 +10,11 @@ var TILE_SERVER_BASE_URL = 'http://tiles.rhom.io';
 
 function checkTileServer(tileId, callback) {
     var url = TILE_SERVER_BASE_URL + '/tiles/' + tileId;
-    console.log(url);
     request.get(url, { timeout: 15000 }, function(err, httpResponse, body) {
         if (err) return callback(err);
         if (httpResponse.statusCode === 200 && body.indexOf("links") === -1) {
             console.log("got page but didn't have results JSON on it.");
-            return callback(null, 404);
+	    return callback(null, 404);
         }
         return callback(null, httpResponse.statusCode);
     });
@@ -56,11 +51,13 @@ function putToTileServer(tileId, location, callback) {
 }
 
 function fetchFromGoogle(tileId, callback) {
+    console.log(tileId);
     var tile = Tile.tileFromTileId(tileId);
-    console.log(tile.centerLatitude + " , " + tile.centerLongitude);
+    console.log(new Date() + ": " + tile.centerLatitude + " , " + tile.centerLongitude);
 
     var url = "http://maps.google.com/maps/api/geocode/json?latlng=" + tile.centerLatitude + "," + tile.centerLongitude + "&sensor=false";
     console.log('fetching from google');
+
     request.get(url, { timeout: 15000 }, function(err, httpResponse, body) {
         console.log('fetched from google');
         if (err) {
@@ -76,8 +73,6 @@ function fetchFromGoogle(tileId, callback) {
             var waitTimeout = 60 * 60 * 1000;
             if (json.status === 'UNKNOWN_ERROR')
 	        waitTimeout = 0;
-            else
-                appInsightsClient.trackMetric("overquota", 1);
             return setTimeout(function() { callback(json.status); }, waitTimeout);
         }
 
@@ -119,9 +114,6 @@ async.forever(function(next) {
 
             if (statusCode === 200) {
                 console.log('already have tile: ' + tileId);
-                queueService.deleteMessage(UNFETCHED_QUEUE, message.messageid, message.popreceipt, function(err) {
-                    if (err) console.log('deleteMessage err: ' + err);
-                });
                 return next();
             }
 
@@ -139,11 +131,10 @@ async.forever(function(next) {
                         return setTimeout(next, 15 * 1000);
                     }
 
-                    console.dir(location);
+                    console.dir(location.parsed);
 
-                    appInsightsClient.trackMetric("tile", 1);
                     var checkTime = new Date().getTime() - startTime.getTime();
-                    var timeout = Math.max(40 * 1000 - checkTime, 0);
+                    var timeout = Math.max(0.5 * 1000 - checkTime, 0);
                     setTimeout(next, timeout);
                 });
             });
