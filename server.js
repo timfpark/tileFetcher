@@ -2,7 +2,7 @@ var async = require('async')
   , azure = require('azure-storage')
   , fs = require('fs')
   , request = require('request')
-  , Tile = require('geotile')
+  , Tile = require('geotile');
 
 var retryOperations = new azure.ExponentialRetryPolicyFilter();
 
